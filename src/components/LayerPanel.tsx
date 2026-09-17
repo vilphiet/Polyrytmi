@@ -1,6 +1,49 @@
+import { useState } from 'react';
 import type { RhythmLayer, Waveform } from '../audio/types';
 
 const WAVEFORM_OPTIONS: Waveform[] = ['sine', 'triangle', 'square', 'sawtooth'];
+
+interface ClampedNumberFieldProps {
+  value: number;
+  min: number;
+  max: number;
+  onCommit: (n: number) => void;
+}
+
+// Lets the field go through empty/invalid intermediate states while typing
+// (e.g. clearing "1" to type "12") and only clamps once editing finishes,
+// instead of snapping back to min on every keystroke.
+function ClampedNumberField({ value, min, max, onCommit }: ClampedNumberFieldProps) {
+  const [text, setText] = useState(String(value));
+  const [syncedValue, setSyncedValue] = useState(value);
+
+  if (value !== syncedValue) {
+    setSyncedValue(value);
+    setText(String(value));
+  }
+
+  const commit = () => {
+    const parsed = Math.round(Number(text));
+    const clamped = Number.isFinite(parsed) && text.trim() !== '' ? Math.max(min, Math.min(max, parsed)) : value;
+    setText(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
 
 interface Props {
   layers: RhythmLayer[];
@@ -31,15 +74,11 @@ export function LayerPanel({ layers, onUpdate, onRemove, onAdd }: Props) {
 
             <label className="layer-field layer-n">
               <span>N</span>
-              <input
-                type="number"
+              <ClampedNumberField
+                value={layer.n}
                 min={1}
                 max={64}
-                value={layer.n}
-                onChange={(e) => {
-                  const n = Math.max(1, Math.min(64, Number(e.target.value) || 1));
-                  onUpdate(layer.id, { n });
-                }}
+                onCommit={(n) => onUpdate(layer.id, { n })}
               />
             </label>
 
@@ -59,12 +98,11 @@ export function LayerPanel({ layers, onUpdate, onRemove, onAdd }: Props) {
 
             <label className="layer-field layer-freq">
               <span>Hz</span>
-              <input
-                type="number"
+              <ClampedNumberField
+                value={Math.round(layer.frequency)}
                 min={20}
                 max={2000}
-                value={Math.round(layer.frequency)}
-                onChange={(e) => onUpdate(layer.id, { frequency: Number(e.target.value) || 0 })}
+                onCommit={(frequency) => onUpdate(layer.id, { frequency })}
               />
             </label>
 
